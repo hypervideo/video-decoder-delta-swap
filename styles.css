@@ -720,6 +720,11 @@ mark.safe {
   color: var(--safe);
 }
 
+mark.bridge {
+  background: rgba(215,255,63,0.1);
+  color: var(--acid);
+}
+
 .strategy-actions {
   margin-top: 17px;
   display: flex;

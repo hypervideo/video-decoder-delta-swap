@@ -88,7 +88,9 @@ const state = {
   singleConfiguredLevel: null,
   recoveryPending: false,
   handoffPending: null,
+  bridgePending: null,
   reconfigurePending: null,
+  lastDecodedFrame: null,
   references: new Map(),
   lastTimestamp: 0,
   lastCaptureAt: 0,
@@ -118,6 +120,7 @@ function createLane(level) {
     bytesWindow: 0,
     bitrateKbps: 0,
     droppedFrames: 0,
+    suppressPeriodicKeyframeOnce: false,
     lastChunkType: "key",
   };
 }
@@ -291,6 +294,7 @@ function handleDecoderError(error, levelId, isolated, decoder) {
   } else if (state.singleDecoder === decoder) {
     state.singleDecoder = null;
     state.singleConfiguredLevel = null;
+    state.bridgePending = null;
     state.recoveryPending = true;
     state.lanes.get(state.activeLevel).forceKeyframe = true;
   }
@@ -354,7 +358,17 @@ function handleEncodedChunk(lane, chunk, metadata) {
 
   if (lane.id !== state.activeLevel) return;
 
-  if (state.recoveryPending) {
+  if (state.bridgePending) {
+    const isExpectedBridge = lane.id === state.bridgePending.levelId
+      && chunk.type === "key"
+      && chunk.timestamp === state.bridgePending.timestamp;
+    if (!isExpectedBridge) return;
+
+    state.bridgePending = null;
+    state.recoveryPending = false;
+    configureSingleDecoder(lane, true);
+    logEvent(`Transcoded bridge admitted at ${lane.width} × ${lane.height}; following target deltas are now live.`);
+  } else if (state.recoveryPending) {
     if (chunk.type !== "key") return;
     state.recoveryPending = false;
     configureSingleDecoder(lane, true);
@@ -443,6 +457,9 @@ function renderDecodedFrame(frame, levelId) {
   const y = (elements.outputCanvas.height - height) / 2;
   outputContext.drawImage(frame, x, y, width, height);
 
+  if (state.lastDecodedFrame) state.lastDecodedFrame.close();
+  state.lastDecodedFrame = frame.clone();
+
   decodedSampleContext.drawImage(frame, 0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT);
   const reference = state.references.get(frame.timestamp);
   if (reference) {
@@ -481,10 +498,12 @@ function captureFrame(now) {
       timestamp,
       duration: Math.round(1_000_000 / TARGET_FPS),
     });
-    const periodicKeyframe = lane.frameCount % KEYFRAME_INTERVAL === 0;
+    const periodicKeyframe = !lane.suppressPeriodicKeyframeOnce
+      && lane.frameCount % KEYFRAME_INTERVAL === 0;
     const keyFrame = lane.forceKeyframe || periodicKeyframe;
     lane.encoder.encode(frame, { keyFrame });
     lane.forceKeyframe = false;
+    lane.suppressPeriodicKeyframeOnce = false;
     frame.close();
   }
 }
@@ -517,6 +536,11 @@ function closeCodecs() {
     state.singleDecoder.close();
   }
   state.singleDecoder = null;
+
+  if (state.lastDecodedFrame) {
+    state.lastDecodedFrame.close();
+    state.lastDecodedFrame = null;
+  }
 
   for (const lane of state.lanes.values()) {
     if (lane.encoder && lane.encoder.state !== "closed") lane.encoder.close();
@@ -635,6 +659,7 @@ function restartDecoding(reason = "Decoder reset requested.") {
   state.singleConfiguredLevel = null;
   state.recoveryPending = true;
   state.handoffPending = null;
+  state.bridgePending = null;
   state.reconfigurePending = null;
 
   for (const lane of state.lanes.values()) {
@@ -645,6 +670,34 @@ function restartDecoding(reason = "Decoder reset requested.") {
   }
   resetMetrics();
   logEvent(`${reason} The next frame on every lane will be a keyframe.`);
+}
+
+function enqueueTranscodedBridge(lane) {
+  if (!state.lastDecodedFrame || !lane.encoder || lane.encoder.state !== "configured") {
+    return null;
+  }
+
+  let bridgeFrame;
+  try {
+    lane.context.drawImage(state.lastDecodedFrame, 0, 0, lane.width, lane.height);
+    const timestamp = Math.max(
+      state.lastTimestamp + 1,
+      state.lastDecodedFrame.timestamp + 1,
+    );
+    state.lastTimestamp = timestamp;
+    bridgeFrame = new VideoFrame(lane.canvas, {
+      timestamp,
+      duration: Math.round(1_000_000 / TARGET_FPS),
+    });
+    lane.encoder.encode(bridgeFrame, { keyFrame: true });
+    lane.forceKeyframe = false;
+    lane.suppressPeriodicKeyframeOnce = true;
+    return timestamp;
+  } catch {
+    return null;
+  } finally {
+    bridgeFrame?.close();
+  }
 }
 
 function switchLevel(levelId, automatic = false) {
@@ -667,6 +720,19 @@ function switchLevel(levelId, automatic = false) {
     state.handoffPending = levelId;
     next.forceKeyframe = true;
     logEvent(`Switched ${previous.label} → ${next.label}; waiting for a clean keyframe boundary.`);
+  } else if (state.strategy === "bridge") {
+    const bridgeTimestamp = enqueueTranscodedBridge(next);
+    if (bridgeTimestamp === null) {
+      state.handoffPending = levelId;
+      next.forceKeyframe = true;
+      logEvent(`No decoded image was available for the ${next.label} bridge; falling back to a keyframe handoff.`);
+      return;
+    }
+
+    state.deltaSwaps += 1;
+    elements.deltaSwaps.textContent = state.deltaSwaps.toLocaleString();
+    state.bridgePending = { levelId, timestamp: bridgeTimestamp };
+    logEvent(`Switched ${previous.label} → ${next.label}; transcoding the remembered frame into the target encoder.`);
   } else {
     logEvent(`Switched display to the primed ${next.label} decoder.`);
   }
