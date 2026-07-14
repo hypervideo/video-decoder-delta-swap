@@ -203,7 +203,12 @@
                 <p>Live measurements compare decoded pixels with the source frame.</p>
               </div>
             </div>
-            <span class="quality-pill" id="qualityPill" data-quality="idle">No sample</span>
+            <div class="quality-actions">
+              <button class="small-button" id="resetConfidenceButton" type="button" disabled>
+                Reset confidence
+              </button>
+              <span class="quality-pill" id="qualityPill" data-quality="idle">No sample</span>
+            </div>
           </header>
 
           <div class="metric-grid">

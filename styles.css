@@ -744,6 +744,12 @@ kbd {
   text-transform: uppercase;
 }
 
+.quality-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .quality-pill[data-quality="good"] {
   border-color: rgba(89,230,167,0.35);
   background: rgba(89,230,167,0.06);
@@ -1051,6 +1057,11 @@ footer {
   .telemetry-header {
     align-items: flex-start;
     gap: 15px;
+  }
+
+  .quality-actions {
+    align-items: flex-end;
+    flex-direction: column-reverse;
   }
 }
 

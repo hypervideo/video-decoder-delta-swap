@@ -21,6 +21,7 @@ const elements = {
   liveBadge: document.querySelector("#liveBadge"),
   startButton: document.querySelector("#startButton"),
   resetDecoderButton: document.querySelector("#resetDecoderButton"),
+  resetConfidenceButton: document.querySelector("#resetConfidenceButton"),
   forceKeyframeButton: document.querySelector("#forceKeyframeButton"),
   autoSwitch: document.querySelector("#autoSwitch"),
   sessionState: document.querySelector("#sessionState"),
@@ -121,6 +122,7 @@ function setControlsEnabled(enabled) {
   elements.laneButtons.forEach((button) => { button.disabled = !enabled; });
   elements.autoSwitch.disabled = !enabled;
   elements.resetDecoderButton.disabled = !enabled;
+  elements.resetConfidenceButton.disabled = !enabled;
   elements.forceKeyframeButton.disabled = !enabled;
 }
 
@@ -586,6 +588,20 @@ function resetMetrics() {
   elements.qualityPill.textContent = "No sample";
 }
 
+function resetSignalConfidence() {
+  resetMetrics();
+  state.decodedFrames = 0;
+  state.decoderFaults = 0;
+  state.deltaSwaps = 0;
+  elements.decodedFrames.textContent = "0";
+  elements.decoderFaults.textContent = "0";
+  elements.deltaSwaps.textContent = "0";
+
+  for (const lane of state.lanes.values()) {
+    lane.droppedFrames = 0;
+  }
+}
+
 function restartDecoding(reason = "Decoder reset requested.") {
   if (!state.running) return;
 
@@ -656,6 +672,11 @@ elements.startButton.addEventListener("click", () => {
 });
 
 elements.resetDecoderButton.addEventListener("click", () => restartDecoding());
+
+elements.resetConfidenceButton.addEventListener("click", () => {
+  resetSignalConfidence();
+  logEvent("Signal confidence and cumulative telemetry were reset; the next decoded frame starts a new baseline.");
+});
 
 elements.forceKeyframeButton.addEventListener("click", () => {
   if (!state.running) return;
