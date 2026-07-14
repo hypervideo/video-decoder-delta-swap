@@ -114,9 +114,9 @@
               <div class="auto-switch">
                 <label for="autoSwitch">Auto cycle</label>
                 <select id="autoSwitch" disabled>
-                  <option value="0">Off</option>
+                  <option value="0" selected>Off</option>
                   <option value="2000">2 sec</option>
-                  <option value="4000" selected>4 sec</option>
+                  <option value="4000">4 sec</option>
                   <option value="8000">8 sec</option>
                 </select>
               </div>
@@ -160,7 +160,7 @@
 
             <fieldset class="strategy-list" id="strategyList">
               <label class="strategy">
-                <input type="radio" name="strategy" value="continuous" checked />
+                <input type="radio" name="strategy" value="continuous" />
                 <span class="strategy-check"></span>
                 <span>
                   <strong>Continuous delta swap <mark>Test</mark></strong>
@@ -184,7 +184,7 @@
                 </span>
               </label>
               <label class="strategy">
-                <input type="radio" name="strategy" value="bridge" />
+                <input type="radio" name="strategy" value="bridge" checked />
                 <span class="strategy-check"></span>
                 <span>
                   <strong>Transcoded bridge <mark class="bridge">Bridge</mark></strong>

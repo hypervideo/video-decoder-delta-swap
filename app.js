@@ -80,7 +80,7 @@ const state = {
   generation: 0,
   stream: null,
   activeLevel: "medium",
-  strategy: "continuous",
+  strategy: "bridge",
   codec: null,
   codecFamily: "av1",
   lanes: new Map(),
