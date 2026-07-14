@@ -211,6 +211,42 @@ input:focus-visible + .strategy-check {
   align-content: center;
 }
 
+.codec-picker {
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.codec-picker label {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.codec-picker select {
+  padding: 7px 27px 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+
+.codec-picker select:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .button {
   min-height: 50px;
   border: 1px solid transparent;
@@ -906,6 +942,10 @@ footer {
     grid-column: 2;
     grid-template-columns: 1fr 1fr;
     margin: -10px 0 28px;
+  }
+
+  .codec-picker {
+    grid-column: 1 / -1;
   }
 
   .control-grid {

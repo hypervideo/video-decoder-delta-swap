@@ -4,6 +4,22 @@ const LEVELS = [
   { id: "low", label: "Low", width: 320, height: 180, bitrate: 300_000 },
 ];
 
+const CODEC_FAMILIES = {
+  av1: {
+    label: "AV1",
+    candidates: ["av01.0.08M.08", "av01.0.05M.08", "av01.0.04M.08", "av01"],
+  },
+  h264: {
+    label: "H.264",
+    candidates: ["avc1.64001f", "avc1.4d001f", "avc1.42001f"],
+    encoderOptions: { avc: { format: "avc" } },
+  },
+  vp9: {
+    label: "VP9",
+    candidates: ["vp09.00.31.08", "vp09.00.30.08", "vp09.00.10.08", "vp09"],
+  },
+};
+
 const LEVEL_BY_ID = new Map(LEVELS.map((level) => [level.id, level]));
 const TARGET_FPS = 30;
 const KEYFRAME_INTERVAL = TARGET_FPS * 5;
@@ -20,6 +36,7 @@ const elements = {
   outputMeta: document.querySelector("#outputMeta"),
   liveBadge: document.querySelector("#liveBadge"),
   startButton: document.querySelector("#startButton"),
+  codecSelect: document.querySelector("#codecSelect"),
   resetDecoderButton: document.querySelector("#resetDecoderButton"),
   resetConfidenceButton: document.querySelector("#resetConfidenceButton"),
   forceKeyframeButton: document.querySelector("#forceKeyframeButton"),
@@ -65,6 +82,7 @@ const state = {
   activeLevel: "medium",
   strategy: "continuous",
   codec: null,
+  codecFamily: "av1",
   lanes: new Map(),
   singleDecoder: null,
   singleConfiguredLevel: null,
@@ -152,12 +170,13 @@ function getFallbackDecoderConfig(lane) {
   };
 }
 
-async function findSupportedCodec() {
+async function findSupportedCodec(codecFamilyId) {
   if (!("VideoEncoder" in window) || !("VideoDecoder" in window) || !("VideoFrame" in window)) {
     throw new Error("This browser does not expose the WebCodecs video APIs.");
   }
 
-  const candidates = ["av01.0.08M.08", "av01.0.05M.08", "av01.0.04M.08", "av01"];
+  const family = CODEC_FAMILIES[codecFamilyId];
+  const candidates = family.candidates;
   const high = LEVELS[0];
 
   const probes = candidates.flatMap((codec) => ["prefer-hardware", null].map(async (hardwareAcceleration) => {
@@ -169,6 +188,7 @@ async function findSupportedCodec() {
       framerate: TARGET_FPS,
       latencyMode: "realtime",
       bitrateMode: "variable",
+      ...family.encoderOptions,
     };
     if (hardwareAcceleration) config.hardwareAcceleration = hardwareAcceleration;
 
@@ -177,7 +197,7 @@ async function findSupportedCodec() {
         VideoEncoder.isConfigSupported(config),
         new Promise((resolve) => window.setTimeout(() => resolve({ supported: false }), 3500)),
       ]);
-      return result.supported ? { codec, hardwareAcceleration } : null;
+      return result.supported ? { codec, codecFamilyId, hardwareAcceleration } : null;
     } catch {
       return null;
     }
@@ -187,7 +207,7 @@ async function findSupportedCodec() {
   const supported = results.find(Boolean);
   if (supported) return supported;
 
-  throw new Error("No AV1 WebCodecs encoder is available for a 1280 × 720 stream.");
+  throw new Error(`No ${family.label} WebCodecs encoder is available for a 1280 × 720 stream.`);
 }
 
 function encoderConfigFor(lane, support) {
@@ -199,7 +219,7 @@ function encoderConfigFor(lane, support) {
     framerate: TARGET_FPS,
     latencyMode: "realtime",
     bitrateMode: "variable",
-    alpha: "discard",
+    ...CODEC_FAMILIES[support.codecFamilyId].encoderOptions,
   };
 
   if (support.hardwareAcceleration) {
@@ -435,7 +455,7 @@ function renderDecodedFrame(frame, levelId) {
   state.decodedFrames += 1;
   elements.decodedFrames.textContent = state.decodedFrames.toLocaleString();
   elements.outputEmpty.classList.add("is-hidden");
-  elements.outputMeta.textContent = `${lane.width} × ${lane.height} / ${state.strategy}`;
+  elements.outputMeta.textContent = `${CODEC_FAMILIES[state.codecFamily].label} · ${lane.width} × ${lane.height} / ${state.strategy}`;
   elements.frameType.textContent = `${lane.lastChunkType} frame`;
   elements.frameTimestamp.textContent = `${(frame.timestamp / 1_000_000).toFixed(2)} s`;
 }
@@ -509,11 +529,14 @@ function closeCodecs() {
 
 async function startExperiment() {
   elements.startButton.disabled = true;
-  elements.startButton.textContent = "Checking AV1…";
+  elements.codecSelect.disabled = true;
+  const selectedFamily = elements.codecSelect.value;
+  const selectedCodecLabel = CODEC_FAMILIES[selectedFamily].label;
+  elements.startButton.textContent = `Checking ${selectedCodecLabel}…`;
   setSessionState("idle", "Checking support");
 
   try {
-    const support = await findSupportedCodec();
+    const support = await findSupportedCodec(selectedFamily);
     state.stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
       video: {
@@ -529,6 +552,7 @@ async function startExperiment() {
     state.generation += 1;
     state.running = true;
     state.codec = support.codec;
+    state.codecFamily = support.codecFamilyId;
     state.lanes = new Map(LEVELS.map((level) => [level.id, createLane(level)]));
     for (const lane of state.lanes.values()) {
       lane.encoder = createEncoder(lane, support, state.generation);
@@ -542,8 +566,8 @@ async function startExperiment() {
     elements.startButton.disabled = false;
     elements.startButton.innerHTML = '<span class="button-icon" aria-hidden="true">■</span> Stop camera';
     setControlsEnabled(true);
-    setSessionState("live", `Encoding ${support.codec}`);
-    logEvent(`Three AV1 encoders started with ${state.strategy} decoding.`);
+    setSessionState("live", `Encoding ${selectedCodecLabel}`);
+    logEvent(`Three ${selectedCodecLabel} encoders started with ${state.strategy} decoding.`);
 
     state.statsTimer = window.setInterval(refreshStats, 1000);
     configureAutoSwitch();
@@ -575,6 +599,7 @@ function stopExperiment() {
   elements.outputEmpty.classList.remove("is-hidden");
   elements.liveBadge.classList.remove("is-visible");
   elements.startButton.disabled = false;
+  elements.codecSelect.disabled = false;
   elements.startButton.innerHTML = '<span class="button-icon" aria-hidden="true">●</span> Start camera';
   setControlsEnabled(false);
   setSessionState("idle", "Ready to run");

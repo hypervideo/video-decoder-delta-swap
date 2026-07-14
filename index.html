@@ -5,21 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="A browser-native AV1 resolution switching lab built on WebCodecs."
+      content="A browser-native video resolution switching lab built on WebCodecs."
     />
-    <title>AV1 Delta Swap Lab</title>
+    <title>Video Delta Swap Lab</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="page-shell">
       <header class="topbar">
-        <a class="brand" href="#" aria-label="AV1 Delta Swap Lab home">
+        <a class="brand" href="#" aria-label="Video Delta Swap Lab home">
           <span class="brand-mark" aria-hidden="true">
             <span></span><span></span><span></span>
           </span>
           <span>
             <strong>Delta Swap</strong>
-            <small>AV1 / WebCodecs lab</small>
+            <small>Codec / WebCodecs lab</small>
           </span>
         </a>
 
@@ -35,11 +35,19 @@
           <div class="hero-copy">
             <h1>Change the resolution.<br /><em>Keep the delta.</em></h1>
             <p>
-              Encode one camera feed into three live AV1 streams, then probe how a
+              Encode one camera feed into three live codec streams, then probe how a
               WebCodecs decoder behaves when the stream changes beneath it.
             </p>
           </div>
           <div class="hero-actions">
+            <div class="codec-picker">
+              <label for="codecSelect">Video codec</label>
+              <select id="codecSelect">
+                <option value="av1">AV1</option>
+                <option value="h264">H.264 / AVC</option>
+                <option value="vp9">VP9</option>
+              </select>
+            </div>
             <button class="button button-primary" id="startButton" type="button">
               <span class="button-icon" aria-hidden="true">●</span>
               Start camera
@@ -269,7 +277,7 @@
       </main>
 
       <footer>
-        <span>AV1 DELTA SWAP LAB</span>
+        <span>VIDEO DELTA SWAP LAB</span>
         <span>WebCodecs / local only / <span id="year"></span></span>
       </footer>
     </div>

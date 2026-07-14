@@ -1,6 +1,6 @@
-# AV1 Delta Swap Lab
+# Video Delta Swap Lab
 
-A dependency-free browser test bench for feeding AV1 delta frames from three independently encoded resolutions into WebCodecs `VideoDecoder` instances.
+A dependency-free browser test bench for feeding delta frames from three independently encoded resolutions into WebCodecs `VideoDecoder` instances. AV1, H.264/AVC, and VP9 are available from the codec selector.
 
 ## Run it
 
@@ -19,4 +19,4 @@ Then open `http://localhost:8080` in a current Chromium-based browser and allow 
 - **Keyframe handoff** resets and reconfigures one decoder, requesting a keyframe on the selected encoder.
 - **Isolated decoders** continuously primes one decoder per resolution and switches only the displayed output.
 
-All three AV1 encoders run at the same time. The output monitor includes a lightweight PSNR comparison against the corresponding camera frame to help flag obvious corruption; visual inspection remains the definitive check.
+All three encoders for the selected codec run at the same time. The output monitor includes a lightweight PSNR comparison against the corresponding camera frame to help flag obvious corruption; visual inspection remains the definitive check.
