@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A browser-native AV1 resolution switching lab built on WebCodecs."
+    />
+    <title>AV1 Delta Swap Lab</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="AV1 Delta Swap Lab home">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span>
+            <strong>Delta Swap</strong>
+            <small>AV1 / WebCodecs lab</small>
+          </span>
+        </a>
+
+        <div class="session-state" id="sessionState" data-state="idle">
+          <span class="state-dot"></span>
+          <span id="sessionStateText">Ready to run</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div class="eyebrow"><span>Browser-native test bench</span><span>01</span></div>
+          <div class="hero-copy">
+            <h1>Change the resolution.<br /><em>Keep the delta.</em></h1>
+            <p>
+              Encode one camera feed into three live AV1 streams, then probe how a
+              WebCodecs decoder behaves when the stream changes beneath it.
+            </p>
+          </div>
+          <div class="hero-actions">
+            <button class="button button-primary" id="startButton" type="button">
+              <span class="button-icon" aria-hidden="true">●</span>
+              Start camera
+            </button>
+            <button class="button button-ghost" id="resetDecoderButton" type="button" disabled>
+              Reset decoder
+            </button>
+          </div>
+        </section>
+
+        <section class="workspace" aria-label="Video workspace">
+          <article class="monitor monitor-source">
+            <header class="monitor-header">
+              <div>
+                <span class="monitor-index">A</span>
+                <span>Camera source</span>
+              </div>
+              <span class="monitor-meta" id="sourceMeta">—</span>
+            </header>
+            <div class="video-frame">
+              <video id="sourceVideo" autoplay muted playsinline></video>
+              <div class="empty-state" id="sourceEmpty">
+                <span class="camera-glyph" aria-hidden="true"></span>
+                <strong>Camera is offline</strong>
+                <span>Your feed stays in this browser.</span>
+              </div>
+              <span class="live-badge" id="liveBadge">Live</span>
+            </div>
+          </article>
+
+          <article class="monitor monitor-output">
+            <header class="monitor-header">
+              <div>
+                <span class="monitor-index">B</span>
+                <span>Decoder output</span>
+              </div>
+              <span class="monitor-meta accent" id="outputMeta">Awaiting frames</span>
+            </header>
+            <div class="video-frame">
+              <canvas id="outputCanvas" width="1280" height="720"></canvas>
+              <div class="empty-state" id="outputEmpty">
+                <span class="signal-glyph" aria-hidden="true"></span>
+                <strong>No decoded frame</strong>
+                <span>Start the camera to begin the experiment.</span>
+              </div>
+              <div class="frame-readout">
+                <span id="frameType">— frame</span>
+                <span id="frameTimestamp">0.00 s</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="control-grid">
+          <article class="panel stream-panel">
+            <header class="panel-header">
+              <div>
+                <span class="section-number">02</span>
+                <div>
+                  <h2>Resolution lanes</h2>
+                  <p>Choose which encoded stream reaches the visible decoder.</p>
+                </div>
+              </div>
+              <div class="auto-switch">
+                <label for="autoSwitch">Auto cycle</label>
+                <select id="autoSwitch" disabled>
+                  <option value="0">Off</option>
+                  <option value="2000">2 sec</option>
+                  <option value="4000" selected>4 sec</option>
+                  <option value="8000">8 sec</option>
+                </select>
+              </div>
+            </header>
+
+            <div class="lane-list" id="laneList">
+              <button class="lane" type="button" data-level="high" disabled>
+                <span class="lane-radio"></span>
+                <span class="lane-name"><strong>High</strong><small>Lane 01</small></span>
+                <span class="lane-resolution">1280 × 720</span>
+                <span class="lane-rate"><strong data-stat="high-bitrate">0</strong><small>kbps</small></span>
+                <span class="lane-health" data-health="high">Idle</span>
+              </button>
+              <button class="lane is-active" type="button" data-level="medium" disabled>
+                <span class="lane-radio"></span>
+                <span class="lane-name"><strong>Medium</strong><small>Lane 02</small></span>
+                <span class="lane-resolution">640 × 360</span>
+                <span class="lane-rate"><strong data-stat="medium-bitrate">0</strong><small>kbps</small></span>
+                <span class="lane-health" data-health="medium">Idle</span>
+              </button>
+              <button class="lane" type="button" data-level="low" disabled>
+                <span class="lane-radio"></span>
+                <span class="lane-name"><strong>Low</strong><small>Lane 03</small></span>
+                <span class="lane-resolution">320 × 180</span>
+                <span class="lane-rate"><strong data-stat="low-bitrate">0</strong><small>kbps</small></span>
+                <span class="lane-health" data-health="low">Idle</span>
+              </button>
+            </div>
+          </article>
+
+          <article class="panel strategy-panel">
+            <header class="panel-header compact">
+              <div>
+                <span class="section-number">03</span>
+                <div>
+                  <h2>Decoder strategy</h2>
+                  <p>Control what happens at the switching boundary.</p>
+                </div>
+              </div>
+            </header>
+
+            <fieldset class="strategy-list" id="strategyList">
+              <label class="strategy">
+                <input type="radio" name="strategy" value="continuous" checked />
+                <span class="strategy-check"></span>
+                <span>
+                  <strong>Continuous delta swap <mark>Test</mark></strong>
+                  <small>One decoder. No reset, reconfigure, or keyframe.</small>
+                </span>
+              </label>
+              <label class="strategy">
+                <input type="radio" name="strategy" value="reconfigure" />
+                <span class="strategy-check"></span>
+                <span>
+                  <strong>Reconfigure + delta</strong>
+                  <small>Apply the new lane config, but keep the next frame delta.</small>
+                </span>
+              </label>
+              <label class="strategy">
+                <input type="radio" name="strategy" value="keyframe" />
+                <span class="strategy-check"></span>
+                <span>
+                  <strong>Keyframe handoff <mark class="safe">Safe</mark></strong>
+                  <small>Reset, reconfigure, and enter the new lane on a keyframe.</small>
+                </span>
+              </label>
+              <label class="strategy">
+                <input type="radio" name="strategy" value="isolated" />
+                <span class="strategy-check"></span>
+                <span>
+                  <strong>Isolated decoders</strong>
+                  <small>Keep one fully primed decoder per resolution.</small>
+                </span>
+              </label>
+            </fieldset>
+
+            <div class="strategy-actions">
+              <button class="small-button" id="forceKeyframeButton" type="button" disabled>
+                Force keyframe
+              </button>
+              <span>Keyboard: <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span>
+            </div>
+          </article>
+        </section>
+
+        <section class="telemetry panel">
+          <header class="panel-header telemetry-header">
+            <div>
+              <span class="section-number">04</span>
+              <div>
+                <h2>Signal confidence</h2>
+                <p>Live measurements compare decoded pixels with the source frame.</p>
+              </div>
+            </div>
+            <span class="quality-pill" id="qualityPill" data-quality="idle">No sample</span>
+          </header>
+
+          <div class="metric-grid">
+            <div class="metric primary-metric">
+              <span>Frame similarity</span>
+              <strong><span id="psnrValue">—</span><small>dB PSNR</small></strong>
+              <div class="meter"><span id="psnrMeter"></span></div>
+            </div>
+            <div class="metric">
+              <span>Decoded</span>
+              <strong><span id="decodedFrames">0</span><small>frames</small></strong>
+            </div>
+            <div class="metric">
+              <span>Decoder faults</span>
+              <strong><span id="decoderFaults">0</span><small>events</small></strong>
+            </div>
+            <div class="metric">
+              <span>Delta swaps</span>
+              <strong><span id="deltaSwaps">0</span><small>attempts</small></strong>
+            </div>
+            <div class="metric">
+              <span>Encode load</span>
+              <strong><span id="queueDepth">0</span><small>queued</small></strong>
+            </div>
+          </div>
+
+          <div class="event-strip">
+            <div class="event-title">
+              <span>Latest event</span>
+              <time id="eventTime">—</time>
+            </div>
+            <p id="eventMessage">The experiment has not started yet.</p>
+          </div>
+        </section>
+
+        <section class="notes">
+          <div>
+            <span class="section-number">05</span>
+            <h2>How to read this test</h2>
+          </div>
+          <div class="note-grid">
+            <p>
+              <strong>Continuous delta swap</strong> deliberately sends a delta frame
+              from a separately encoded resolution into the same decoder. It is the
+              stress case—not a production streaming recipe.
+            </p>
+            <p>
+              <strong>PSNR is a tripwire, not a verdict.</strong> A sharp drop or a
+              decoder fault marks a suspicious handoff. Use the two video monitors to
+              confirm visible corruption.
+            </p>
+            <p>
+              <strong>Privacy:</strong> frames are processed locally with WebCodecs.
+              This page does not upload, record, or persist camera data.
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span>AV1 DELTA SWAP LAB</span>
+        <span>WebCodecs / local only / <span id="year"></span></span>
+      </footer>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
