@@ -51,6 +51,7 @@ const elements = {
   psnrMeter: document.querySelector("#psnrMeter"),
   qualityPill: document.querySelector("#qualityPill"),
   decodedFrames: document.querySelector("#decodedFrames"),
+  encodedKeyFrames: document.querySelector("#encodedKeyFrames"),
   decoderFaults: document.querySelector("#decoderFaults"),
   deltaSwaps: document.querySelector("#deltaSwaps"),
   queueDepth: document.querySelector("#queueDepth"),
@@ -95,6 +96,7 @@ const state = {
   lastTimestamp: 0,
   lastCaptureAt: 0,
   decodedFrames: 0,
+  encodedKeyFrames: 0,
   decoderFaults: 0,
   deltaSwaps: 0,
   recentPsnr: [],
@@ -341,6 +343,10 @@ function handleEncodedChunk(lane, chunk, metadata) {
   lane.frameCount += 1;
   lane.bytesWindow += chunk.byteLength;
   lane.lastChunkType = chunk.type;
+  if (chunk.type === "key") {
+    state.encodedKeyFrames += 1;
+    elements.encodedKeyFrames.textContent = state.encodedKeyFrames.toLocaleString();
+  }
 
   if (metadata?.decoderConfig) {
     lane.decoderConfig = cloneDecoderConfig(metadata.decoderConfig);
@@ -640,9 +646,11 @@ function resetMetrics() {
 function resetSignalConfidence() {
   resetMetrics();
   state.decodedFrames = 0;
+  state.encodedKeyFrames = 0;
   state.decoderFaults = 0;
   state.deltaSwaps = 0;
   elements.decodedFrames.textContent = "0";
+  elements.encodedKeyFrames.textContent = "0";
   elements.decoderFaults.textContent = "0";
   elements.deltaSwaps.textContent = "0";
 
