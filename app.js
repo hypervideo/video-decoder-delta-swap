@@ -51,7 +51,8 @@ const elements = {
   psnrMeter: document.querySelector("#psnrMeter"),
   qualityPill: document.querySelector("#qualityPill"),
   decodedFrames: document.querySelector("#decodedFrames"),
-  encodedKeyFrames: document.querySelector("#encodedKeyFrames"),
+  naturalKeyFrames: document.querySelector("#naturalKeyFrames"),
+  transcodedKeyFrames: document.querySelector("#transcodedKeyFrames"),
   decoderFaults: document.querySelector("#decoderFaults"),
   deltaSwaps: document.querySelector("#deltaSwaps"),
   queueDepth: document.querySelector("#queueDepth"),
@@ -96,7 +97,8 @@ const state = {
   lastTimestamp: 0,
   lastCaptureAt: 0,
   decodedFrames: 0,
-  encodedKeyFrames: 0,
+  naturalKeyFrames: 0,
+  transcodedKeyFrames: 0,
   decoderFaults: 0,
   deltaSwaps: 0,
   recentPsnr: [],
@@ -123,6 +125,7 @@ function createLane(level) {
     bitrateKbps: 0,
     droppedFrames: 0,
     suppressPeriodicKeyframeOnce: false,
+    transcodedFrameTimestamps: new Set(),
     lastChunkType: "key",
   };
 }
@@ -343,9 +346,11 @@ function handleEncodedChunk(lane, chunk, metadata) {
   lane.frameCount += 1;
   lane.bytesWindow += chunk.byteLength;
   lane.lastChunkType = chunk.type;
+  const isTranscoded = lane.transcodedFrameTimestamps.delete(chunk.timestamp);
   if (chunk.type === "key") {
-    state.encodedKeyFrames += 1;
-    elements.encodedKeyFrames.textContent = state.encodedKeyFrames.toLocaleString();
+    const counter = isTranscoded ? "transcodedKeyFrames" : "naturalKeyFrames";
+    state[counter] += 1;
+    elements[counter].textContent = state[counter].toLocaleString();
   }
 
   if (metadata?.decoderConfig) {
@@ -646,11 +651,13 @@ function resetMetrics() {
 function resetSignalConfidence() {
   resetMetrics();
   state.decodedFrames = 0;
-  state.encodedKeyFrames = 0;
+  state.naturalKeyFrames = 0;
+  state.transcodedKeyFrames = 0;
   state.decoderFaults = 0;
   state.deltaSwaps = 0;
   elements.decodedFrames.textContent = "0";
-  elements.encodedKeyFrames.textContent = "0";
+  elements.naturalKeyFrames.textContent = "0";
+  elements.transcodedKeyFrames.textContent = "0";
   elements.decoderFaults.textContent = "0";
   elements.deltaSwaps.textContent = "0";
 
@@ -686,9 +693,10 @@ function enqueueTranscodedBridge(lane) {
   }
 
   let bridgeFrame;
+  let timestamp;
   try {
     lane.context.drawImage(state.lastDecodedFrame, 0, 0, lane.width, lane.height);
-    const timestamp = Math.max(
+    timestamp = Math.max(
       state.lastTimestamp + 1,
       state.lastDecodedFrame.timestamp + 1,
     );
@@ -697,11 +705,13 @@ function enqueueTranscodedBridge(lane) {
       timestamp,
       duration: Math.round(1_000_000 / TARGET_FPS),
     });
+    lane.transcodedFrameTimestamps.add(timestamp);
     lane.encoder.encode(bridgeFrame, { keyFrame: true });
     lane.forceKeyframe = false;
     lane.suppressPeriodicKeyframeOnce = true;
     return timestamp;
   } catch {
+    if (timestamp !== undefined) lane.transcodedFrameTimestamps.delete(timestamp);
     return null;
   } finally {
     bridgeFrame?.close();

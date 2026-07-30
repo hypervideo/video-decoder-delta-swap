@@ -805,7 +805,7 @@ kbd {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: 1.45fr repeat(5, 1fr);
+  grid-template-columns: 1.45fr repeat(6, 1fr);
 }
 
 .metric {
@@ -971,7 +971,7 @@ footer {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .metric:nth-child(3) {
+  .metric:nth-child(3n) {
     border-right: 0;
   }
 
