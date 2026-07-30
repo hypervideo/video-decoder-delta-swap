@@ -22,7 +22,6 @@ const CODEC_FAMILIES = {
 
 const LEVEL_BY_ID = new Map(LEVELS.map((level) => [level.id, level]));
 const TARGET_FPS = 30;
-const KEYFRAME_INTERVAL = TARGET_FPS * 5;
 const ANALYSIS_WIDTH = 160;
 const ANALYSIS_HEIGHT = 90;
 const MAX_REFERENCE_FRAMES = 150;
@@ -120,11 +119,9 @@ function createLane(level) {
     decoderAwaitingKey: true,
     decoderConfig: null,
     forceKeyframe: true,
-    frameCount: 0,
     bytesWindow: 0,
     bitrateKbps: 0,
     droppedFrames: 0,
-    suppressPeriodicKeyframeOnce: false,
     transcodedFrameTimestamps: new Set(),
     lastChunkType: "key",
   };
@@ -343,7 +340,6 @@ function decodeOrReport(decoder, chunk, lane) {
 }
 
 function handleEncodedChunk(lane, chunk, metadata) {
-  lane.frameCount += 1;
   lane.bytesWindow += chunk.byteLength;
   lane.lastChunkType = chunk.type;
   const isTranscoded = lane.transcodedFrameTimestamps.delete(chunk.timestamp);
@@ -509,12 +505,8 @@ function captureFrame(now) {
       timestamp,
       duration: Math.round(1_000_000 / TARGET_FPS),
     });
-    const periodicKeyframe = !lane.suppressPeriodicKeyframeOnce
-      && lane.frameCount % KEYFRAME_INTERVAL === 0;
-    const keyFrame = lane.forceKeyframe || periodicKeyframe;
-    lane.encoder.encode(frame, { keyFrame });
+    lane.encoder.encode(frame, { keyFrame: lane.forceKeyframe });
     lane.forceKeyframe = false;
-    lane.suppressPeriodicKeyframeOnce = false;
     frame.close();
   }
 }
@@ -708,7 +700,6 @@ function enqueueTranscodedBridge(lane) {
     lane.transcodedFrameTimestamps.add(timestamp);
     lane.encoder.encode(bridgeFrame, { keyFrame: true });
     lane.forceKeyframe = false;
-    lane.suppressPeriodicKeyframeOnce = true;
     return timestamp;
   } catch {
     if (timestamp !== undefined) lane.transcodedFrameTimestamps.delete(timestamp);
