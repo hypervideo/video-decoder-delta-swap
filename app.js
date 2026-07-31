@@ -20,6 +20,12 @@ const CODEC_FAMILIES = {
   },
 };
 
+const ACCELERATION_LABELS = {
+  "no-preference": "auto",
+  "prefer-hardware": "prefer hardware",
+  "prefer-software": "prefer software",
+};
+
 const LEVEL_BY_ID = new Map(LEVELS.map((level) => [level.id, level]));
 const TARGET_FPS = 30;
 const ANALYSIS_WIDTH = 160;
@@ -36,6 +42,8 @@ const elements = {
   liveBadge: document.querySelector("#liveBadge"),
   startButton: document.querySelector("#startButton"),
   codecSelect: document.querySelector("#codecSelect"),
+  encodeAcceleration: document.querySelector("#encodeAcceleration"),
+  decodeAcceleration: document.querySelector("#decodeAcceleration"),
   resetDecoderButton: document.querySelector("#resetDecoderButton"),
   resetConfidenceButton: document.querySelector("#resetConfidenceButton"),
   forceKeyframeButton: document.querySelector("#forceKeyframeButton"),
@@ -170,8 +178,14 @@ function getFallbackDecoderConfig(lane) {
     codec: state.codec,
     codedWidth: lane.width,
     codedHeight: lane.height,
-    hardwareAcceleration: "prefer-hardware",
     optimizeForLatency: true,
+  };
+}
+
+function decoderConfigFor(lane) {
+  return {
+    ...(lane.decoderConfig ?? getFallbackDecoderConfig(lane)),
+    hardwareAcceleration: elements.decodeAcceleration.value,
   };
 }
 
@@ -183,8 +197,9 @@ async function findSupportedCodec(codecFamilyId) {
   const family = CODEC_FAMILIES[codecFamilyId];
   const candidates = family.candidates;
   const high = LEVELS[0];
+  const hardwareAcceleration = elements.encodeAcceleration.value;
 
-  const probes = candidates.flatMap((codec) => ["prefer-hardware", null].map(async (hardwareAcceleration) => {
+  const probes = candidates.map(async (codec) => {
     const config = {
       codec,
       width: high.width,
@@ -193,9 +208,9 @@ async function findSupportedCodec(codecFamilyId) {
       framerate: TARGET_FPS,
       latencyMode: "realtime",
       bitrateMode: "variable",
+      hardwareAcceleration,
       ...family.encoderOptions,
     };
-    if (hardwareAcceleration) config.hardwareAcceleration = hardwareAcceleration;
 
     try {
       const result = await Promise.race([
@@ -206,13 +221,13 @@ async function findSupportedCodec(codecFamilyId) {
     } catch {
       return null;
     }
-  }));
+  });
 
   const results = await Promise.all(probes);
   const supported = results.find(Boolean);
   if (supported) return supported;
 
-  throw new Error(`No ${family.label} WebCodecs encoder is available for a 1280 × 720 stream.`);
+  throw new Error(`No ${family.label} WebCodecs encoder (${ACCELERATION_LABELS[hardwareAcceleration]}) is available for a 1280 × 720 stream.`);
 }
 
 function encoderConfigFor(lane, support) {
@@ -224,12 +239,9 @@ function encoderConfigFor(lane, support) {
     framerate: TARGET_FPS,
     latencyMode: "realtime",
     bitrateMode: "variable",
+    hardwareAcceleration: support.hardwareAcceleration,
     ...CODEC_FAMILIES[support.codecFamilyId].encoderOptions,
   };
-
-  if (support.hardwareAcceleration) {
-    config.hardwareAcceleration = support.hardwareAcceleration;
-  }
 
   return config;
 }
@@ -311,7 +323,7 @@ function ensureIsolatedDecoder(lane) {
     lane.decoder = createDecoder(lane.id, true, state.generation);
   }
   if (lane.decoder.state === "unconfigured") {
-    lane.decoder.configure(lane.decoderConfig ?? getFallbackDecoderConfig(lane));
+    lane.decoder.configure(decoderConfigFor(lane));
   }
   return lane.decoder;
 }
@@ -326,7 +338,7 @@ function ensureSingleDecoder() {
 function configureSingleDecoder(lane, reset = false) {
   const decoder = ensureSingleDecoder();
   if (reset && decoder.state === "configured") decoder.reset();
-  decoder.configure(lane.decoderConfig ?? getFallbackDecoderConfig(lane));
+  decoder.configure(decoderConfigFor(lane));
   state.singleConfiguredLevel = lane.id;
   return decoder;
 }
@@ -557,6 +569,7 @@ function closeCodecs() {
 async function startExperiment() {
   elements.startButton.disabled = true;
   elements.codecSelect.disabled = true;
+  elements.encodeAcceleration.disabled = true;
   const selectedFamily = elements.codecSelect.value;
   const selectedCodecLabel = CODEC_FAMILIES[selectedFamily].label;
   elements.startButton.textContent = `Checking ${selectedCodecLabel}…`;
@@ -594,7 +607,7 @@ async function startExperiment() {
     elements.startButton.innerHTML = '<span class="button-icon" aria-hidden="true">■</span> Stop camera';
     setControlsEnabled(true);
     setSessionState("live", `Encoding ${selectedCodecLabel}`);
-    logEvent(`Three ${selectedCodecLabel} encoders started with ${state.strategy} decoding.`);
+    logEvent(`Three ${selectedCodecLabel} encoders (${ACCELERATION_LABELS[support.hardwareAcceleration]}) started with ${state.strategy} decoding.`);
 
     state.statsTimer = window.setInterval(refreshStats, 1000);
     configureAutoSwitch();
@@ -627,6 +640,7 @@ function stopExperiment() {
   elements.liveBadge.classList.remove("is-visible");
   elements.startButton.disabled = false;
   elements.codecSelect.disabled = false;
+  elements.encodeAcceleration.disabled = false;
   elements.startButton.innerHTML = '<span class="button-icon" aria-hidden="true">●</span> Start camera';
   setControlsEnabled(false);
   setSessionState("idle", "Ready to run");
@@ -795,6 +809,14 @@ elements.strategyInputs.forEach((input) => {
 });
 
 elements.autoSwitch.addEventListener("change", configureAutoSwitch);
+
+elements.decodeAcceleration.addEventListener("change", () => {
+  if (state.running) {
+    restartDecoding(`Decoder acceleration set to ${ACCELERATION_LABELS[elements.decodeAcceleration.value]}.`);
+  } else {
+    logEvent(`Decoder acceleration set to ${ACCELERATION_LABELS[elements.decodeAcceleration.value]}.`);
+  }
+});
 
 window.addEventListener("keydown", (event) => {
   if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;

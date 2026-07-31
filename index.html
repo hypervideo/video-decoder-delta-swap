@@ -48,6 +48,22 @@
                 <option value="vp9">VP9</option>
               </select>
             </div>
+            <div class="codec-picker">
+              <label for="encodeAcceleration">Encoder acceleration</label>
+              <select id="encodeAcceleration">
+                <option value="no-preference" selected>Auto</option>
+                <option value="prefer-hardware">Prefer hardware</option>
+                <option value="prefer-software">Prefer software</option>
+              </select>
+            </div>
+            <div class="codec-picker">
+              <label for="decodeAcceleration">Decoder acceleration</label>
+              <select id="decodeAcceleration">
+                <option value="no-preference">Auto</option>
+                <option value="prefer-hardware" selected>Prefer hardware</option>
+                <option value="prefer-software">Prefer software</option>
+              </select>
+            </div>
             <button class="button button-primary" id="startButton" type="button">
               <span class="button-icon" aria-hidden="true">●</span>
               Start camera
